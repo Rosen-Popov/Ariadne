@@ -3,44 +3,56 @@ import httpClient
 import htmlparser
 import xmltree
 import sequtils
+import tables
 #import strtabs
 
 type
-  Property = object 
-    xTag:string
-    prop:string
-    value:string
-    text:string
+  TagId = object 
+    XTag:string
+    Prop:string
+    UniqueIdentifier:string
+    Value:string
+    Text:string
 
-  Group = object
-    collums:seq[Property]
-
-  TagSpec = object
-    targets:seq[Group]
+  ContainerTag =object
+    WrapperTag: TagId
+    TargetTag: seq[TagId]
 
   SpiderDen = object
-    rootpoint:string
-    page_que:seq[string]
-    next_page:Property
+    Rootpoint:string
+    Page_que:seq[string]
+    Targets:ContainerTag
+    Next_page:TagId
 
-proc getnext_pages(dom:XmlNode,target_tag:Property,root:string):seq[string]=
+proc getnext_pages(dom:XmlNode,target_tag:TagId,root:string):seq[string]=
   var res : seq[string]
-  for i in dom.findAll(target_tag.xTag):
-    if i.innerText == target_tag.text:
-      if not(root & i.attr(target_tag.prop) in res):
-        res.add(root & i.attr(target_tag.prop))
+  #@TODO make it so it's a switchcase like a state machine
+  for i in dom.findAll(target_tag.XTag):
+    if i.innerText == target_tag.Text:
+      if not(root & i.attr(target_tag.Prop) in res):
+        res.add(root & i.attr(target_tag.Prop))
   return res
 
 
-proc WeaveWeb(spec:var SpiderDen)=
+proc WeaveWeb(spec:var SpiderDen):seq[Table[string,string]]=
   var tmp_client = newHttpClient()
   var page_seq_swp : seq[string]
-  while spec.page_que.len() != 0:
-    for crnt_page in spec.page_que:
-      var dom=tmp_client.getContent(crnt_page)
-      page_seq_swp.add(getnext_pages(dom,spec.next_page,spec.rootpoint))
-      # read page
-    spec.page_que = page_seq_swp
+  while spec.Page_que.len() != 0:
+    for crnt_page in spec.Page_que:
+      var dom=parseHtml(tmp_client.getContent(crnt_page))
+      page_seq_swp.add(getnext_pages(dom,spec.Next_page,spec.Rootpoint))
+      for selection in dom.findAll(spec.Targets.WrapperTag.XTag):
+        var pair_table:Table[string,string]
+        for targets in items(spec.Targets.TargetTag):
+          for subtags in selection.findAll(targets.XTag):
+            #@TODO make it so it's a switchcase like a state machine
+            if targets.UniqueIdentifier in subtags.attrs:
+              table[]
+
+
+
+
+    spec.Page_que = page_seq_swp
   return
 
 
