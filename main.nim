@@ -2,60 +2,66 @@
 import httpClient
 import htmlparser
 import xmltree
-import sequtils
+import sets
 import tables
 #import strtabs
 
 type
   TagId = object 
     XTag:string
+    Uid:string
+    UidV:string
     Prop:string
-    UniqueIdentifier:string
     Value:string
     Text:string
-
-  ContainerTag =object
-    WrapperTag: TagId
-    TargetTag: seq[TagId]
+    GetItx:bool
 
   SpiderDen = object
     Rootpoint:string
-    Page_que:seq[string]
-    Targets:ContainerTag
+    Page_que:HashSet[string]
+    Targets:seq[TagId]
     Next_page:TagId
 
-proc getnext_pages(dom:XmlNode,target_tag:TagId,root:string):seq[string]=
-  var res : seq[string]
+proc getnext_pages(dom:XmlNode,target_tag:TagId,root:string):HashSet[string]=
+  var res : HashSet[string]
   #@TODO make it so it's a switchcase like a state machine
   for i in dom.findAll(target_tag.XTag):
     if i.innerText == target_tag.Text:
-      if not(root & i.attr(target_tag.Prop) in res):
-        res.add(root & i.attr(target_tag.Prop))
+      res.incl(root & i.attr(target_tag.Prop))
   return res
 
+proc ComplId(tar:TagId):string=
+  return tar.Uid & "=" & tar.UidV 
 
-proc WeaveWeb(spec:var SpiderDen):seq[Table[string,string]]=
+proc WeaveWeb(spec:var SpiderDen):Table[string,seq[string]]=
   var tmp_client = newHttpClient()
-  var page_seq_swp : seq[string]
+  var newPages : HashSet[string]
+  var Storage:Table[string,seq[string]]
+  var visited:HashSet[string]
+  for i in spec.Targets:
+    Storage[i.ComplId()] = @[]
+    if i.GetItx == true:
+      Storage[i.ComplId() & "_Text"] = @[]
+
   while spec.Page_que.len() != 0:
-    for crnt_page in spec.Page_que:
+    for crnt_page in items(spec.Page_que):
+      echo "crnt page " & crnt_page
       var dom=parseHtml(tmp_client.getContent(crnt_page))
-      page_seq_swp.add(getnext_pages(dom,spec.Next_page,spec.Rootpoint))
-      for selection in dom.findAll(spec.Targets.WrapperTag.XTag):
-        var pair_table:Table[string,string]
-        for targets in items(spec.Targets.TargetTag):
-          for subtags in selection.findAll(targets.XTag):
-            #@TODO make it so it's a switchcase like a state machine
-            if targets.UniqueIdentifier in subtags.attrs:
-              table[]
+      newPages.incl(getnext_pages(dom,spec.Next_page,spec.Rootpoint))
+      for targets in spec.Targets:
+        for selection in dom.findAll(targets.Xtag):
+          if selection.attr(targets.Uid) == targets.UidV and selection.attr(targets.Prop) != "":
+            Storage[targets.ComplId() ].add(selection.attr(targets.Prop))
+            if targets.GetItx == true:
+              Storage[targets.ComplId() & "_Text"].add(selection.innerText())
 
+    spec.Page_que = newPages.difference(visited)
+    visited.incl(newPages)
 
-
-
-    spec.Page_que = page_seq_swp
-  return
+  return Storage
 
 
 if isMainModule == true:
-  var tmp_client = newHttpClient()
-  echo "is not done"
+  var site:SpiderDen
+
+  echo WeaveWeb(site)
