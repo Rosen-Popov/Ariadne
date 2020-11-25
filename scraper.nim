@@ -103,5 +103,5 @@ proc WeaveWeb*(spec:var SpiderDen):Table[string,seq[string]]=
 
 if isMainModule == true:
   #@TODO : Add Tests
-  echo "Compiled Correctly"
+  echo "henlo"
 
