@@ -6,8 +6,10 @@ import tables
 import bitops
 import strformat
 
-let GetText:int = 1
-let PrepRoot:int = 2
+const GetText:int = 1
+const PrepRoot:int = 2
+const UseText:int = 4
+const UseUid:int = 8
 
 type
   TagId = object
@@ -27,14 +29,6 @@ type
     FailNonEqu:bool
     PageLimit:int
 
-proc getnext_pages(dom:XmlNode,target_tag:TagId,root:string):HashSet[string]=
-  var res : HashSet[string]
-  #@TODO : Make it so it's a switchcase or more flexible
-  for i in dom.findAll(target_tag.XTag):
-    if i.innerText == target_tag.Text:
-      res.incl(root & i.attr(target_tag.Prop))
-  return res
-
 proc ComplId(tar:TagId):string=
   return tar.Uid & "=" & tar.UidV
 
@@ -46,6 +40,25 @@ proc `&`(a,b:int):int=
 
 proc `?`(mask,item:int):bool=
   return bitand(mask,item).bool
+
+#proc getnext_pages(dom:XmlNode,target_tag:TagId,root:string):HashSet[string]=
+#  var res : HashSet[string]
+#  #@TODO : Make it so it's a switchcase or more flexible
+#  for i in dom.findAll(target_tag.XTag):
+#    if i.innerText == target_tag.Text:
+#      res.incl(root & i.attr(target_tag.Prop))
+#  return res
+proc getnext_pages(dom:XmlNode,target_tag:TagId,root:string):HashSet[string]=
+  var res : HashSet[string]
+  var Filter:bool = true
+  #@TODO : Make it so it's a switchcase or more flexible
+  for i in dom.findAll(target_tag.XTag):
+    if target_tag.Flags ? UseText:
+      Filter
+    if i.innerText == target_tag.Text:
+      res.incl(root & i.attr(target_tag.Prop))
+  return res
+
 
 proc SmartPrep(Uri,text:string):string=
   if text[0] == '/' and Uri[Uri.high()] == '/':
