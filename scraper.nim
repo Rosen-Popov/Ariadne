@@ -5,6 +5,7 @@ import sets
 import tables
 import bitops
 import strtabs
+import sequtils
 import strformat
 import httpClient
 import locks
@@ -16,7 +17,6 @@ const UseUid:int =        1 shl 3
 const TextIsRegex:int=    1 shl 4
 const UidIsRegex:int =    1 shl 5
 const UidVIsRegex:int =   1 shl 6
-
 
 type
   TagId = object
@@ -42,6 +42,7 @@ type
     table:Table[string,Regex]
 
 var PrcRg:ThrSafeGlRegexTable
+PrcRg.mutex.initLock()
 
 proc ComplId(tar:TagId):string=
   return tar.Uid & "=" & tar.UidV
@@ -86,13 +87,11 @@ proc Elegiable(test_tag:XmlNode,ctlTag:TagId):bool=
   return Filter
 
 #@TODO :Make documentation
-proc getnext_pages(dom:XmlNode,target_tag:TagId,root:string):HashSet[string]=
-  # @TODO make it os it uses the same hashset
-  var res : HashSet[string]
+proc getnext_pages(dom:XmlNode,target_tag:TagId,root:string,store:var HashSet[string])=
   for i in dom.findAll(target_tag.XTag):
     if i.Elegiable(target_tag):
-      res.incl(root & i.attr(target_tag.Prop))
-  return res
+      store.incl(root & i.attr(target_tag.Prop))
+  return 
 
 #@TODO :Make documentation
 proc SmartPrep(Uri,text:string):string=
@@ -103,9 +102,19 @@ proc SmartPrep(Uri,text:string):string=
   elif text[0] != '/' and Uri[Uri.high()] == '/':
     return Uri & text
 
-#@TODO :Make documentation
-proc PrecompileRegexes(nextpage:TagId,targets:seq[TagId])=
-  #@TODO precompile regexes
+proc PrecompileRegexes(targets:seq[TagId])=
+  PrcRg.mutex.acquire()
+  for i in items(targets):
+    if (i.Flags & TextIsRegex).bool and (i.Text in PrcRg.table)==false:
+      PrcRg.table[i.Text] = re(i.Text)
+
+    if (i.Flags & UidIsRegex).bool and (i.Uid in PrcRg.table)==false:
+      PrcRg.table[i.Uid] = re(i.Uid)
+
+    if (i.Flags & TextIsRegex).bool and (i.UidV in PrcRg.table)==false:
+      PrcRg.table[i.UidV] = re(i.UidV)
+
+  PrcRg.mutex.release()
   return
 
 #@TODO :Make documentation
@@ -117,7 +126,8 @@ proc WeaveWeb*(spec:var SpiderDen):Table[string,seq[string]]=
   var sanity_check:int = -1
   var sanity_key: string
   var page:int = 0
-  PrecompileRegexes(spec.NextPage,spec.Targets)
+  #@TODO add a way to deal with all the tags  on seq no copies no destructive
+  PrecompileRegexes(concat(spec.Targets,@[spec.NextPage]))
 
   for i in spec.Targets:
     Storage[i.ComplId()] = @[]
@@ -129,11 +139,10 @@ proc WeaveWeb*(spec:var SpiderDen):Table[string,seq[string]]=
       for crnt_page in items(spec.PageQue):
         echo "crnt page " & crnt_page
         var dom=parseHtml(tmp_client.getContent(crnt_page))
-        newPages.incl(getnext_pages(dom,spec.NextPage,spec.Rootpoint))
+        getnext_pages(dom,spec.NextPage,spec.Rootpoint,newPages)
         for targets in spec.Targets:
           for selection in dom.findAll(targets.Xtag):
-            #@TODO make this use Elegiable
-            if selection.attr(targets.Uid) == targets.UidV and selection.attr(targets.Prop) != "":
+            if selection.Elegiable(targets):
               if targets.Flags ? PrepRoot:
                 Storage[targets.ComplId() ].add(SmartPrep(spec.RootPoint,selection.attr(targets.Prop)))
               else:
