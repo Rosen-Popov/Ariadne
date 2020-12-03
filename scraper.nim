@@ -10,32 +10,32 @@ import strformat
 import httpClient
 import locks
 
-const GetText:int =       1 shl 0
-const PrepRoot:int=       1 shl 1
-const UseText:int =       1 shl 2
-const UseUid:int =        1 shl 3
-const TextIsRegex:int=    1 shl 4
-const TextIsSubstr:int=   1 shl 5
-const UidIsRegex:int =    1 shl 6
-const UidVIsRegex:int =   1 shl 7
+const GetText*:int =       1 shl 0
+const PrepRoot*:int=       1 shl 1
+const UseText*:int =       1 shl 2
+const UseUid*:int =        1 shl 3
+const TextIsRegex*:int=    1 shl 4
+const TextIsSubstr*:int=   1 shl 5
+const UidIsRegex*:int =    1 shl 6
+const UidVIsRegex*:int =   1 shl 7
 
 type
-  TagId = object
-    XTag:string
-    Uid:string
-    UidV:string
-    Prop:string
-    Value:string
-    Text:string
-    Flags:int
+  TagId* = object
+    XTag*:string
+    Uid*:string
+    UidV*:string
+    Prop*:string
+    #Value*:string
+    Text*:string
+    Flags*:int
 
-  SpiderDen = object
-    Rootpoint:string
-    PageQue:HashSet[string]
-    Targets:seq[TagId]
-    NextPage:TagId
-    FailNonEqu:bool
-    PageLimit:int
+  SpiderDen* = object
+    Rootpoint*:string
+    PageQue*:HashSet[string]
+    Targets*:seq[TagId]
+    NextPage*:TagId
+    FailNonEqu*:bool
+    PageLimit*:int
 
   ThrSafeGlRegexTable =object
     #@TODO make functions to deal with that
@@ -62,7 +62,7 @@ proc ComplId(tar:TagId):string=
 #
 # @retrun : birwise or of 2 inputs
 #
-proc `|`(a,b:int):int=
+proc `|`*(a,b:int):int=
   return bitor(a,b)
 #
 # @operator &
@@ -71,7 +71,7 @@ proc `|`(a,b:int):int=
 #
 # @retrun bitwise and of 2 inputs
 #
-proc `&`(a,b:int):int=
+proc `&`*(a,b:int):int=
   return bitand(a,b)
 
 #
@@ -81,7 +81,7 @@ proc `&`(a,b:int):int=
 #
 # @retrun : checks if the two numbers have a bit overlap and returns it cast to bool
 #
-proc `?`(mask,item:int):bool=
+proc `?`*(mask,item:int):bool=
   return bitand(mask,item).bool
 
 #
@@ -141,10 +141,9 @@ proc IsTarget(test_tag:XmlNode,ctlTag:TagId):bool=
 proc SmartPrep(Uri,text:string):string=
   if text[0] == '/' and Uri[Uri.high()] == '/':
     return Uri[0..<Uri.high()] & text
-  elif text[0] != '/' and Uri[Uri.high()] != '/':
+  if text[0] != '/' and Uri[Uri.high()] != '/':
     return Uri & "/" & text
-  elif text[0] != '/' and Uri[Uri.high()] == '/':
-    return Uri & text
+  return Uri & text
 #
 # @function : getnext_pages
 #
@@ -208,10 +207,10 @@ proc WeaveWeb*(spec:var SpiderDen):Table[string,seq[string]]=
     if i.Flags ? GetText:
       Storage[i.ComplId() & "_Text"] = @[]
 
+
   block Ariadne:
     while spec.PageQue.len() != 0:
       for crnt_page in items(spec.PageQue):
-        echo "crnt page " & crnt_page
         var dom=parseHtml(tmp_client.getContent(crnt_page))
         getnext_pages(dom,spec.NextPage,spec.Rootpoint,newPages)
         for targets in spec.Targets:
@@ -224,11 +223,11 @@ proc WeaveWeb*(spec:var SpiderDen):Table[string,seq[string]]=
               if targets.Flags ? GetText:
                 Storage[targets.ComplId() & "_Text"].add(selection.innerText())
         page = page + 1
-        if spec.PageLimit>0 and page > spec.PageLimit :
-          break Ariadne
-
+      if spec.PageLimit>0 and page > spec.PageLimit :
+        break Ariadne
       spec.PageQue = newPages.difference(visited)
       visited.incl(newPages)
+
 
   for p in keys(Storage):
     if sanity_check < 0:
