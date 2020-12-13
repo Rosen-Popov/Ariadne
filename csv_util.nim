@@ -13,14 +13,16 @@ proc PosInCont[T](container:seq[T],item:T):int=
   return -1
 
 proc DateToday():string=
-  result = now().utc().format("dd-MM-yyyy") & ".csv" 
+  result = (now().utc() + 2.hours).format("dd-MM-yyyy") & ".csv" 
 
 proc FilterCurrent*(table:var Table[string,seq[string]],files:seq[string],uni_key:string)=
   var PositionFilter:IntSet=initIntSet()
+  var table_res:Table[string,seq[string]]
   for fpath in items(files):
     block iteration:
       var reader: CsvParser
-      reader.open("temp.csv")
+      reader.open(fpath)
+      echo "reading " & fpath
       reader.readHeaderRow()
       if uni_key in reader.headers == false:
         break iteration
@@ -30,19 +32,21 @@ proc FilterCurrent*(table:var Table[string,seq[string]],files:seq[string],uni_ke
           PositionFilter.incl(pos)
   for i in keys(table):
       var tmp_seq:seq[string]
-      for pos in 0..table[uni_key].high():
+      for pos in 0..table[i].high():
         if pos notin PositionFilter:
-          tmp_seq.add(table[uni_key][pos])
-      table[uni_key] = tmp_seq
+          tmp_seq.add(table[i][pos])
+      table[i] = tmp_seq
   return
-    
+
 proc ExportToCsv*(table:Table[string,seq[string]],name:string)=
   var header =""
   var length:int = -1
+  echo name
   for i in keys(table):
     if length < 0:
       length = table[i].len()
     elif length != table[i].len():
+      echo i," ",length," " ,table[i].len()
       stderr.write("size incosistent between collumns")
       return
     header = header & i & ","
@@ -52,7 +56,6 @@ proc ExportToCsv*(table:Table[string,seq[string]],name:string)=
     echo "could not open file"
     return
   writer.write(header)
-
   for pos in 0..<length:
     var tmp: string
     tmp = ""
@@ -65,21 +68,21 @@ proc ExportToCsv*(table:Table[string,seq[string]],name:string)=
   return
 
 proc DefExport*(table:Table[string,seq[string]],foldername:string,uni_key:string)=
+  var folder:string = foldername
+  if foldername[foldername.high()] !=  '/':
+    folder.add('/')
+
   if existsOrCreateDir(foldername):
     var tmp_table = table
     var tmp_files:seq[string]
-    for dir in walkFiles(fmt"{foldername}/*"):
+    for dir in walkFiles(fmt"{folder}*"):
       if DateToday() in dir.string:
         continue
       tmp_files.add(dir)
     FilterCurrent(tmp_table,tmp_files,uni_key)
+    ExportToCsv(tmp_table,folder & DateToday() )
   else:
-    if foldername[foldername.high()] == '/':
-      var date_fname:string = now().utc().format("dd-MM-yyyy") & ".csv" 
-      ExportToCsv(table,foldername & date_fname )
-    else:
-      var date_fname:string = now().utc().format("dd-MM-yyyy") & ".csv" 
-      ExportToCsv(table,foldername & "/" & date_fname )
+    ExportToCsv(table,folder & DateToday() )
 
 
 
