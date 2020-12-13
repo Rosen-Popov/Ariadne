@@ -4,12 +4,16 @@ import intsets
 import os
 import times
 import strformat
+import strutils
 
 proc PosInCont[T](container:seq[T],item:T):int=
   for pos in 0..container.high():
     if container[pos] == item:
       return pos
   return -1
+
+proc DateToday():string=
+  result = now().utc().format("dd-MM-yyyy") & ".csv" 
 
 proc FilterCurrent*(table:var Table[string,seq[string]],files:seq[string],uni_key:string)=
   var PositionFilter:IntSet=initIntSet()
@@ -65,12 +69,19 @@ proc DefExport*(table:Table[string,seq[string]],foldername:string,uni_key:string
     var tmp_table = table
     var tmp_files:seq[string]
     for dir in walkFiles(fmt"{foldername}/*"):
+      if DateToday() in dir.string:
+        continue
       tmp_files.add(dir)
     FilterCurrent(tmp_table,tmp_files,uni_key)
   else:
     if foldername[foldername.high()] == '/':
       var date_fname:string = now().utc().format("dd-MM-yyyy") & ".csv" 
       ExportToCsv(table,foldername & date_fname )
+    else:
+      var date_fname:string = now().utc().format("dd-MM-yyyy") & ".csv" 
+      ExportToCsv(table,foldername & "/" & date_fname )
+
+
 
 if isMainModule:
   echo "henlo"
